@@ -7,7 +7,7 @@ version = "0.1.0"
 edition = "2021"
 authors = ["ahknsaimpry@gmail.com"]
 license = "MIT"
-repository = "https://github.com/noosyz/zero-browse"
+repository = "https://github.com/noosyz/zero-browser"
 
 [workspace.dependencies]
 anyhow = "1.0"
