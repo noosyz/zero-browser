@@ -1,0 +1,16 @@
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["ahknsaimpry@gmail.com"]
+license = "MIT"
+repository = "https://github.com/noosyz/zero-browse"
+
+[workspace.dependencies]
+anyhow = "1.0"
+tao = "0.30"
+wry = "0.45"
+gtk = "0.18"
