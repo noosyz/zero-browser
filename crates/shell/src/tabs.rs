@@ -7,11 +7,11 @@ use std::{
 use anyhow::Result;
 use gtk::prelude::{
     BoxExt, ButtonExt, EditableExt, EntryExt, GtkWindowExt, LabelExt, NotebookExt,
-    NotebookExtManual, WidgetExt,
+    NotebookExtManual, ProgressBarExt, WidgetExt,
 };
 use webkit2gtk::{
-    SettingsExt, UserContentInjectedFrames, UserContentManagerExt, UserStyleLevel, UserStyleSheet,
-    WebViewExt as WebkitWebViewExt,
+    HitTestResultExt, LoadEvent, SettingsExt, UserContentInjectedFrames, UserContentManagerExt,
+    UserStyleLevel, UserStyleSheet, WebViewExt as WebkitWebViewExt,
 };
 use wry::{
     http::{Request, Response},
@@ -68,21 +68,28 @@ pub(crate) struct TabManager {
     entry: gtk::Entry,
     back_btn: gtk::Button,
     forward_btn: gtk::Button,
+    progress_bar: gtk::ProgressBar,
+    status_label: gtk::Label,
     gtk_window: gtk::ApplicationWindow,
     on_empty: Box<dyn Fn()>,
     web_context: Rc<RefCell<WebContext>>,
     zero_registered: Cell<bool>,
+    pub(crate) home_url: String,
 }
 
 impl TabManager {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         notebook: gtk::Notebook,
         entry: gtk::Entry,
         back_btn: gtk::Button,
         forward_btn: gtk::Button,
+        progress_bar: gtk::ProgressBar,
+        status_label: gtk::Label,
         gtk_window: gtk::ApplicationWindow,
         on_empty: Box<dyn Fn()>,
         web_context: Rc<RefCell<WebContext>>,
+        home_url: String,
     ) -> Self {
         Self {
             notebook,
@@ -91,10 +98,13 @@ impl TabManager {
             entry,
             back_btn,
             forward_btn,
+            progress_bar,
+            status_label,
             gtk_window,
             on_empty,
             web_context,
             zero_registered: Cell::new(false),
+            home_url,
         }
     }
 
@@ -185,11 +195,52 @@ impl TabManager {
         {
             let this_clone = Rc::clone(this);
             let webkit = webkit.clone();
-            webkit.connect_load_changed(move |_, _| {
+            webkit.connect_load_changed(move |_, event| {
+                let tm = this_clone.borrow();
+                if !tm.is_active(id) {
+                    return;
+                }
+                tm.sync_nav_buttons();
+                match event {
+                    LoadEvent::Started => {
+                        tm.progress_bar.set_fraction(0.0);
+                        tm.progress_bar.set_visible(true);
+                    }
+                    LoadEvent::Finished => {
+                        tm.progress_bar.set_fraction(1.0);
+                        tm.progress_bar.set_visible(false);
+                    }
+                    _ => {}
+                }
+            });
+        }
+
+        {
+            let this_clone = Rc::clone(this);
+            let webkit = webkit.clone();
+            webkit.connect_estimated_load_progress_notify(move |wv| {
                 let tm = this_clone.borrow();
                 if tm.is_active(id) {
-                    tm.sync_nav_buttons();
+                    tm.progress_bar.set_fraction(wv.estimated_load_progress());
                 }
+            });
+        }
+
+        {
+            let this_clone = Rc::clone(this);
+            let webkit = webkit.clone();
+            webkit.connect_mouse_target_changed(move |_, hit, _| {
+                let tm = this_clone.borrow();
+                if !tm.is_active(id) {
+                    return;
+                }
+                if hit.context_is_link() {
+                    if let Some(uri) = hit.link_uri() {
+                        tm.status_label.set_text(&uri);
+                        return;
+                    }
+                }
+                tm.status_label.set_text("");
             });
         }
 
@@ -256,6 +307,7 @@ impl TabManager {
     }
 
     fn apply_chrome(&self, tab: Option<&Tab>) {
+        self.status_label.set_text("");
         if let Some(tab) = tab {
             self.entry.set_text(&tab.url);
             self.entry.set_position(-1);
@@ -264,11 +316,16 @@ impl TabManager {
             let wk = tab.webview.webview();
             self.back_btn.set_sensitive(wk.can_go_back());
             self.forward_btn.set_sensitive(wk.can_go_forward());
+            let fraction = wk.estimated_load_progress();
+            self.progress_bar.set_fraction(fraction);
+            self.progress_bar
+                .set_visible(fraction > 0.0 && fraction < 1.0);
         } else {
             self.entry.set_text("");
             self.gtk_window.set_title("Zero Browser");
             self.back_btn.set_sensitive(false);
             self.forward_btn.set_sensitive(false);
+            self.progress_bar.set_visible(false);
         }
     }
 
