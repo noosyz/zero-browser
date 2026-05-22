@@ -5,13 +5,15 @@ use std::{
 };
 
 use anyhow::Result;
+use gtk::glib::Cast;
 use gtk::prelude::{
     BoxExt, ButtonExt, EditableExt, EntryExt, GtkWindowExt, LabelExt, NotebookExt,
-    NotebookExtManual, ProgressBarExt, WidgetExt,
+    NotebookExtManual, ObjectType, ProgressBarExt, WidgetExt,
 };
 use webkit2gtk::{
-    HitTestResultExt, LoadEvent, SettingsExt, UserContentInjectedFrames, UserContentManagerExt,
-    UserStyleLevel, UserStyleSheet, WebViewExt as WebkitWebViewExt,
+    HitTestResultExt, LoadEvent, NavigationPolicyDecision, NavigationPolicyDecisionExt,
+    PolicyDecisionExt, PolicyDecisionType, SettingsExt, URIRequestExt, UserContentInjectedFrames,
+    UserContentManagerExt, UserStyleLevel, UserStyleSheet, WebViewExt as WebkitWebViewExt,
 };
 use wry::{
     http::{Request, Response},
@@ -59,6 +61,7 @@ pub(crate) struct Tab {
     pub(crate) title_label: gtk::Label,
     pub(crate) title: String,
     pub(crate) url: String,
+    pub(crate) page: gtk::Box,
 }
 
 pub(crate) struct TabManager {
@@ -108,7 +111,7 @@ impl TabManager {
         }
     }
 
-    pub(crate) fn open_tab(this: &Rc<RefCell<Self>>, url: &str) -> Result<TabId> {
+    pub(crate) fn open_tab(this: &Rc<RefCell<Self>>, url: &str, background: bool) -> Result<TabId> {
         let id = {
             let mut tm = this.borrow_mut();
             tm.next_id += 1;
@@ -245,6 +248,52 @@ impl TabManager {
         }
 
         {
+            let this_clone = Rc::clone(this);
+            let webkit = webkit.clone();
+            webkit.connect_decide_policy(move |_, decision, decision_type| {
+                if decision_type != PolicyDecisionType::NavigationAction {
+                    return false;
+                }
+                let Some(nav) = decision.downcast_ref::<NavigationPolicyDecision>() else {
+                    return false;
+                };
+                let Some(action) = nav.navigation_action() else {
+                    return false;
+                };
+                if action.mouse_button() != 2 {
+                    return false;
+                }
+                let Some(uri) = action.request().and_then(|r| r.uri()) else {
+                    return false;
+                };
+                decision.ignore();
+                let url = uri.to_string();
+                let this_again = Rc::clone(&this_clone);
+                if let Err(e) = TabManager::open_tab(&this_again, &url, true) {
+                    eprintln!("middle-click open_tab failed: {e}");
+                }
+                true
+            });
+        }
+
+        {
+            let this_clone = Rc::clone(this);
+            let webkit = webkit.clone();
+            webkit.connect_create(move |_, action| {
+                let url = action
+                    .request()
+                    .and_then(|r| r.uri())
+                    .map(|g| g.to_string())
+                    .unwrap_or_else(|| "about:blank".to_string());
+                let this_again = Rc::clone(&this_clone);
+                if let Err(e) = TabManager::open_tab(&this_again, &url, false) {
+                    eprintln!("popup open_tab failed: {e}");
+                }
+                None::<gtk::Widget>
+            });
+        }
+
+        {
             let mut tm = this.borrow_mut();
             tm.tabs.push(Tab {
                 id,
@@ -252,15 +301,18 @@ impl TabManager {
                 title_label,
                 title: url.to_string(),
                 url: url.to_string(),
+                page: page.clone(),
             });
         }
 
         let notebook = this.borrow().notebook.clone();
         notebook.append_page(&page, Some(&label_box));
-        notebook.set_tab_reorderable(&page, false);
+        notebook.set_tab_reorderable(&page, true);
 
-        let idx = this.borrow().tabs.len() - 1;
-        notebook.set_current_page(Some(idx as u32));
+        if !background {
+            let idx = this.borrow().tabs.len() - 1;
+            notebook.set_current_page(Some(idx as u32));
+        }
 
         this.borrow().update_chrome();
 
@@ -292,6 +344,23 @@ impl TabManager {
 
     fn tab_by_id_mut(&mut self, id: TabId) -> Option<&mut Tab> {
         self.tabs.iter_mut().find(|t| t.id == id)
+    }
+
+    pub(crate) fn reorder_tab_by_widget(&mut self, child: &gtk::Widget, new_idx: usize) {
+        let child_ptr = child.as_ptr();
+        let Some(cur) = self
+            .tabs
+            .iter()
+            .position(|t| t.page.upcast_ref::<gtk::Widget>().as_ptr() == child_ptr)
+        else {
+            return;
+        };
+        if cur == new_idx {
+            return;
+        }
+        let tab = self.tabs.remove(cur);
+        let clamped = new_idx.min(self.tabs.len());
+        self.tabs.insert(clamped, tab);
     }
 
     fn is_active(&self, id: TabId) -> bool {

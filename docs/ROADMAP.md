@@ -22,18 +22,18 @@ Native chrome over WebKitGTK (Linux) / WebView2 (Windows) / WKWebView (macOS) vi
 - [x] Loading progress indicator (`gtk::ProgressBar` driven by `estimated_load_progress`)
 - [x] Status bar with hover URL (`mouse_target_changed` → `HitTestResult::link_uri`)
 
-### 1.2 — Tabs *(current)*
+### 1.2 — Tabs
 - [x] `gtk::Notebook`-backed `TabManager`
 - [x] Per-tab `WebView`, shared `WebContext`
 - [x] Close button per tab; close-last → quit
 - [x] `zero://newtab/` custom protocol + static HTML
 - [x] URL normalizer (scheme detect, loopback→http, bare-host→https, search fallback)
-- [ ] Ctrl+T new tab, Ctrl+W close, Ctrl+Tab cycle, Ctrl+1..9 jump
-- [ ] Middle-click link → new tab
-- [ ] Tab reordering (drag)
-- [ ] Detect target=\_blank / window.open → new tab instead of new window
+- [x] Ctrl+T new tab, Ctrl+W close, Ctrl+Tab cycle, Ctrl+1..9 jump
+- [x] Middle-click link → background tab (`decide-policy` + `mouse_button == 2`)
+- [x] Tab reordering (drag) with `Vec<Tab>` resync via `page-reordered`
+- [x] `target=_blank` / `window.open` → foreground tab (`connect_create` returns `None`)
 
-### 1.3 — History
+### 1.3 — History *(current)*
 - [ ] Persist `(url, title, visited_at)` to SQLite (`rusqlite` or `sqlx`)
 - [ ] In-memory LRU for current session
 - [ ] Omnibox suggestions from history (prefix + frecency)

@@ -44,4 +44,4 @@ cargo clippy --workspace --all-targets -- -D warnings
 - JavaScript engine integration. Stage 2.
 
 ## Phase tracking
-See `docs/ROADMAP.md`. Current phase: **1.2 — Tabs**.
+See `docs/ROADMAP.md`. Current phase: **1.3 — History**.

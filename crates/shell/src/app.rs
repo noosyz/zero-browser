@@ -96,6 +96,14 @@ impl App {
 
         {
             let tm = Rc::clone(&tab_manager);
+            notebook.connect_page_reordered(move |_, child, new_idx| {
+                tm.borrow_mut()
+                    .reorder_tab_by_widget(child, new_idx as usize);
+            });
+        }
+
+        {
+            let tm = Rc::clone(&tab_manager);
             entry.connect_activate(move |entry| {
                 let url = normalize_url(&entry.text());
                 if url.is_empty() {
@@ -159,7 +167,7 @@ impl App {
             let tm = Rc::clone(&tab_manager);
             let home = home_url.to_string();
             new_tab_btn.connect_clicked(move |_| {
-                if let Err(e) = TabManager::open_tab(&tm, &home) {
+                if let Err(e) = TabManager::open_tab(&tm, &home, false) {
                     eprintln!("open_tab failed: {e}");
                 }
             });
@@ -190,7 +198,7 @@ impl App {
                     }
                     if keyval == K::t || keyval == K::T {
                         let home = tm.borrow().home_url.clone();
-                        if let Err(e) = TabManager::open_tab(&tm, &home) {
+                        if let Err(e) = TabManager::open_tab(&tm, &home, false) {
                             eprintln!("open_tab failed: {e}");
                         }
                         return glib::Propagation::Stop;
@@ -257,7 +265,7 @@ impl App {
             });
         }
 
-        TabManager::open_tab(&tab_manager, home_url)?;
+        TabManager::open_tab(&tab_manager, home_url, false)?;
 
         Ok(Self {
             _window: window,
