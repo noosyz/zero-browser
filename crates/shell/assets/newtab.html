@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>New Tab</title>
+<style>
+  html, body {
+    height: 100%;
+    margin: 0;
+    background: #0e1116;
+    color: #e6e6e6;
+    font-family: 'Cascadia Code', monospace;
+  }
+  main {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+  }
+  h1 {
+    font-size: 6rem;
+    margin: 0 0 1.5rem;
+    letter-spacing: -0.05em;
+  }
+  form { width: min(640px, 80%); }
+  input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 1rem 1.25rem;
+    font-size: 1.05rem;
+    border-radius: 0.5rem;
+    border: 1px solid #2c313a;
+    background: #161b22;
+    color: inherit;
+    font-family: inherit;
+    outline: none;
+  }
+  input:focus { border-color: #5b8def; }
+</style>
+</head>
+<body>
+<main>
+  <h1>0</h1>
+  <form onsubmit="go(document.getElementById('q').value); return false">
+    <input id="q" autofocus placeholder="Search or enter address" autocomplete="off">
+  </form>
+</main>
+<script>
+function go(q) {
+  q = q.trim();
+  if (!q) return;
+  if (/^[a-z]+:\/\//i.test(q) || /^(about|data|javascript|mailto):/i.test(q)) {
+    location.href = q;
+  } else if (/^(localhost|127\.0\.0\.1|\[::1\])([:\/?#]|$)/.test(q)) {
+    location.href = 'http://' + q;
+  } else if (!/\s/.test(q) && (/\./.test(q) || /^\[/.test(q))) {
+    location.href = 'https://' + q;
+  } else {
+    location.href = 'https://duckduckgo.com/?q=' + encodeURIComponent(q);
+  }
+}
+</script>
+</body>
+</html>

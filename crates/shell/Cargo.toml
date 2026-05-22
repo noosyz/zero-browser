@@ -8,7 +8,9 @@ license.workspace = true
 [dependencies]
 anyhow.workspace = true
 tao.workspace = true
+url.workspace = true
 wry.workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
 gtk.workspace = true
+webkit2gtk.workspace = true
